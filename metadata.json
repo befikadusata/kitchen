@@ -1,0 +1,6 @@
+{
+  "name": "Oz Kitchen Platform",
+  "description": "A weekday food subscription management platform with sections for Kitchen Staff, Drivers, and Customers (via a simulated Telegram Mini-App interface), featuring automated calendar exception compensation modeling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
