@@ -21,6 +21,7 @@ export interface Meal {
   photo_url: string;
   type: 'fasting' | 'non_fasting';
   is_combo: boolean;
+  ingredients?: string;
 }
 
 export interface Menu {

@@ -96,17 +96,50 @@ function solveTSP(tasks: any[]): { optimizedTasks: any[]; originalDistance: numb
 }
 
 interface DriverAppProps {
+  user: any;
   tasks: any[];
   onRefresh: () => void;
 }
 
-export default function DriverApp({ tasks, onRefresh }: DriverAppProps) {
+export default function DriverApp({ user, tasks, onRefresh }: DriverAppProps) {
   const [selectedTaskForFail, setSelectedTaskForFail] = useState<any>(null);
   const [failureReason, setFailureReason] = useState('');
-  const [targetDate, setTargetDate] = useState('2026-06-08');
+  const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
   const [submitting, setSubmitting] = useState(false);
   const [optimizeRoute, setOptimizeRoute] = useState(false);
   const [hoveredStopId, setHoveredStopId] = useState<string | number | null>(null);
+  const [gpsCoords, setGpsCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<'searching' | 'active' | 'error'>('searching');
+
+  // GPS Tracking Effect
+  useEffect(() => {
+    if (!("geolocation" in navigator)) {
+      setGpsStatus('error');
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setGpsCoords({ lat: latitude, lng: longitude });
+        setGpsStatus('active');
+        
+        // Sync with backend
+        fetch('/api/driver/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ latitude, longitude })
+        }).catch(err => console.error('GPS Sync Error:', err));
+      },
+      (error) => {
+        console.error('GPS Error:', error);
+        setGpsStatus('error');
+      },
+      { enableHighAccuracy: true, maximumAge: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   // Filter tasks to date
   const todayTasks = tasks.filter(t => t.date === targetDate);
@@ -191,8 +224,11 @@ export default function DriverApp({ tasks, onRefresh }: DriverAppProps) {
       <div className="bg-slate-950 px-5 pt-3 pb-1 flex justify-between items-center text-[10px] font-mono select-none text-slate-400">
         <div>OzDrive v1.2</div>
         <div className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>ONLINE GPS</span>
+          <span className={`w-2 h-2 rounded-full ${
+            gpsStatus === 'active' ? 'bg-emerald-500 animate-pulse' : 
+            gpsStatus === 'searching' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'
+          }`}></span>
+          <span>{gpsStatus === 'active' ? 'ONLINE GPS' : gpsStatus === 'searching' ? 'SEARCHING GPS' : 'GPS ERROR'}</span>
         </div>
       </div>
 
@@ -201,7 +237,7 @@ export default function DriverApp({ tasks, onRefresh }: DriverAppProps) {
         <div className="flex justify-between items-center">
           <div>
             <span className="text-[9px] font-semibold text-amber-400 tracking-wider font-mono block uppercase">Active Dispatcher</span>
-            <h2 className="text-sm font-bold font-display tracking-tight mt-0.5">Abebe Kebede (Lead Driver)</h2>
+            <h2 className="text-sm font-bold font-display tracking-tight mt-0.5">{user?.name || 'Lead Driver'}</h2>
           </div>
           <button 
             onClick={onRefresh}

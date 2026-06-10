@@ -6,17 +6,6 @@ import {
 } from 'lucide-react';
 import { Meal, Menu, Subscription, CalendarException, DeliveryTask } from '../utils/calendar';
 
-const MEAL_INGREDIENTS: Record<string, string[]> = {
-  m1: ['Chickpeas powder', 'Berbere spice', 'Onions', 'Garlic', 'Vegetable oil', 'Injera'],
-  m2: ['Red lentils', 'Berbere spice', 'Onions', 'Garlic', 'Ginger', 'Vegetable oil', 'Injera'],
-  m3: ['Misir wat', 'Shiro', 'Yellow split peas', 'Cabbage', 'Collard greens', 'Beetroot', 'Injera'],
-  m4: ['Torn injera', 'Berbere spice', 'Onions', 'Tomatoes', 'Garlic', 'Vegetable oil'],
-  m5: ['Chicken', 'Red onions', 'Berbere spice', 'Spiced butter', 'Garlic', 'Ginger', 'Hard-boiled eggs', 'Injera'],
-  m6: ['Beef chunks', 'Onions', 'Garlic', 'Rosemary', 'Green chili pepper', 'Spiced butter', 'Injera'],
-  m7: ['Beef chunks', 'Potatoes', 'Turmeric', 'Garlic', 'Ginger', 'Onions', 'Injera'],
-  m8: ['Beef tibs', 'Doro wat', 'Lamb stew', 'Collard greens with beef', 'Cottage cheese', 'Injera']
-};
-
 interface TelegramMiniAppProps {
   users: any[];
   meals: Meal[];
@@ -37,7 +26,10 @@ export default function TelegramMiniApp({
   onRefresh
 }: TelegramMiniAppProps) {
   // Simulator User Selector
-  const [selectedSimUserId, setSelectedSimUserId] = useState<number>(3); // Deborah Mezmur
+  const [selectedSimUserId, setSelectedSimUserId] = useState<string | number>(() => {
+    const firstCustomer = users.find(u => u.role === 'customer');
+    return firstCustomer ? firstCustomer.id : '3';
+  }); 
   const [activeUser, setActiveUser] = useState<any>(null);
   const [loadingUser, setLoadingUser] = useState(false);
   const [subTab, setSubTab] = useState<'menu' | 'rotation' | 'calendar' | 'account'>('calendar');
@@ -110,9 +102,7 @@ export default function TelegramMiniApp({
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     const nameMatch = m.name.toLowerCase().includes(query);
-    const idStr = String(m.id);
-    const ingredients = MEAL_INGREDIENTS[idStr] || [];
-    const ingredientMatch = ingredients.some(ing => ing.toLowerCase().includes(query));
+    const ingredientMatch = m.ingredients?.toLowerCase().includes(query);
     return nameMatch || ingredientMatch;
   });
 
@@ -624,7 +614,7 @@ export default function TelegramMiniApp({
                           <div className="pt-1.5 border-t border-slate-50 text-[9px] text-slate-505">
                             <p className="font-bold text-slate-400 uppercase tracking-wider text-[7.5px] mb-0.5">Ingredients</p>
                             <p className="line-clamp-2 leading-tight font-sans text-slate-500">
-                              {(MEAL_INGREDIENTS[String(m.id)] || []).join(', ')}
+                              {m.ingredients}
                             </p>
                           </div>
                         </div>
@@ -659,7 +649,11 @@ export default function TelegramMiniApp({
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Account Status:</span>
-                        <span className={`font-bold uppercase ${userSub.payment_status === 'paid' ? 'text-emerald-600' : 'text-rose-500 animate-pulse'}`}>
+                        <span className={`font-bold uppercase ${
+                          userSub.payment_status === 'paid' ? 'text-emerald-600' : 
+                          userSub.payment_status === 'verifying' ? 'text-amber-500 animate-pulse' : 
+                          'text-rose-500 animate-pulse'
+                        }`}>
                           {userSub.payment_status}
                         </span>
                       </div>
@@ -689,6 +683,10 @@ export default function TelegramMiniApp({
                           {paymentSubmitting ? 'Processing...' : 'Upload Mock Telebirr Receipt'}
                         </button>
                       </form>
+                    ) : userSub.payment_status === 'verifying' ? (
+                      <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs text-center flex items-center justify-center gap-1 font-semibold leading-normal">
+                        ⌛ Payment verifying. Staff will activate your lunch soon.
+                      </div>
                     ) : (
                       <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs text-center flex items-center justify-center gap-1 font-semibold leading-normal">
                         ✓ All subscriptions paid on this profile! Thank you.

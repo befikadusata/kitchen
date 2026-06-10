@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db_v2:
+    image: postgres:16-alpine
+    container_name: oz-kitchen-db-v2
+    restart: always
+    environment:
+      POSTGRES_USER: oz_admin
+      POSTGRES_PASSWORD: oz_password_2026
+      POSTGRES_DB: oz_kitchen
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data_v2:/var/lib/postgresql/data
+
+  app_v2:
+    build: .
+    container_name: oz-kitchen-app-v2
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://oz_admin:oz_password_2026@oz-kitchen-db-v2:5432/oz_kitchen
+      PORT: 3000
+      JWT_SECRET: oz-kitchen-secret-2026
+      NODE_ENV: production
+    depends_on:
+      - db_v2
+
+volumes:
+  postgres_data_v2:

@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { 
   Plus, Calendar as CalendarIcon, ClipboardList, Users, Package, RefreshCw, 
   CheckCircle, AlertCircle, ShoppingBag, MapPin, Phone, Search, Sliders, DollarSign,
-  Maximize2, ArrowRight, Printer, Check, X, ShieldAlert, Award
+  Maximize2, ArrowRight, Printer, Check, X, ShieldAlert, Award, Bell
 } from 'lucide-react';
 import { Kitchen, User, Meal, Menu, Subscription, CalendarException, DeliveryTask, PaymentRecord } from '../utils/calendar';
+import { useApp } from '../context/AppContext';
 
 interface KitchenDashboardProps {
   kitchen: Kitchen;
@@ -27,9 +28,11 @@ export default function KitchenDashboard({
   tasks,
   onRefresh
 }: KitchenDashboardProps) {
-
+  const { notifications, markNotificationRead } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'home' | 'menu' | 'calendar' | 'subscriptions' | 'manifest' | 'customers'>('home');
   const [selectedSub, setSelectedSub] = useState<any>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const unreadCount = notifications.filter(n => !n.is_read).length;
   
   // States for creating a Meal
   const [mealName, setMealName] = useState('');
@@ -39,9 +42,13 @@ export default function KitchenDashboard({
   const [addingMeal, setAddingMeal] = useState(false);
 
   // States for creating an Exception
-  const [exDate, setExDate] = useState('2026-06-12');
+  const [exDate, setExDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().split('T')[0];
+  });
   const [exType, setExType] = useState<'holiday' | 'closure' | 'fasting_period'>('holiday');
-  const [exReason, setExReason] = useState('Ethiopian Martyrs Day');
+  const [exReason, setExReason] = useState('Public Holiday');
   const [exceptionPreviewCount, setExceptionPreviewCount] = useState<number>(0);
 
   // Search filters
@@ -56,7 +63,7 @@ export default function KitchenDashboard({
   const [editCustAddress, setEditCustAddress] = useState('');
 
   // Daily Manifest Filter
-  const [manifestDate, setManifestDate] = useState('2026-06-08');
+  const [manifestDate, setManifestDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Trigger preview calculations on exception input change
   React.useEffect(() => {
@@ -134,20 +141,36 @@ export default function KitchenDashboard({
   };
 
   // Handle recorded payments
+  const handleApprovePayment = async (subId: string | number) => {
+    try {
+      const response = await fetch(`/api/subscriptions/${subId}/approve-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        onRefresh();
+        if (selectedSub && selectedSub.subscription.id === subId) {
+          fetchSubscriptionDetail(subId);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Handle recorded payments (Manual fallback)
   const handleMarkPaid = async (subId: string | number) => {
     try {
       const response = await fetch(`/api/subscriptions/${subId}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: 3500 // standard subscription price
+          amount: 3500,
+          telebirr_ref: `MANUAL-${Date.now()}`
         })
       });
       if (response.ok) {
-        if (selectedSub && selectedSub.subscription.id === subId) {
-          fetchSubscriptionDetail(subId);
-        }
-        onRefresh();
+        await handleApprovePayment(subId);
       }
     } catch (err) {
       console.error(err);
@@ -225,6 +248,17 @@ export default function KitchenDashboard({
         </div>
         <div className="flex items-center gap-3">
           <button 
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="relative p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700/50 transition-all"
+          >
+            <Bell className="w-4 h-4 text-white" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-slate-900">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+          <button 
             onClick={onRefresh}
             className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 transition-all text-xs text-white rounded-lg flex items-center gap-2 font-medium border border-slate-700/50"
           >
@@ -236,6 +270,42 @@ export default function KitchenDashboard({
           </div>
         </div>
       </div>
+
+      {/* Notifications Drawer */}
+      {showNotifications && (
+        <div className="absolute top-20 right-6 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-slide-in">
+          <div className="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-center">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">System Notifications</h3>
+            <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            {notifications.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs italic">No alerts found.</div>
+            ) : (
+              notifications.map(n => (
+                <div 
+                  key={n.id} 
+                  className={`p-4 border-b border-slate-50 hover:bg-slate-50/50 transition-all cursor-pointer ${!n.is_read ? 'bg-amber-50/30' : ''}`}
+                  onClick={() => {
+                    markNotificationRead(n.id);
+                  }}
+                >
+                  <div className="flex justify-between items-start">
+                    <h4 className={`text-xs font-bold ${n.type === 'error' ? 'text-rose-600' : n.type === 'warning' ? 'text-amber-600' : 'text-slate-800'}`}>
+                      {n.title}
+                    </h4>
+                    {!n.is_read && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{n.message}</p>
+                  <span className="text-[9px] text-slate-400 font-mono mt-2 block">{new Date(n.created_at).toLocaleTimeString()}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Surface Navigation tabs */}
       <div className="flex border-b border-slate-100 overflow-x-auto select-none bg-slate-50/50">
@@ -761,12 +831,20 @@ export default function KitchenDashboard({
                     </p>
                   </div>
                   <div className="flex items-center gap-2 text-xs">
-                    {selectedSub.subscription?.payment_status !== 'paid' && (
+                    {selectedSub.subscription?.payment_status === 'verifying' && (
+                      <button 
+                        onClick={() => handleApprovePayment(selectedSub.subscription.id)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-medium flex items-center gap-1.5 animate-pulse"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Approve & Activate Plan
+                      </button>
+                    )}
+                    {selectedSub.subscription?.payment_status === 'unpaid' && (
                       <button 
                         onClick={() => handleMarkPaid(selectedSub.subscription.id)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-medium flex items-center gap-1.5"
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded font-medium flex items-center gap-1.5"
                       >
-                        <DollarSign className="w-3.5 h-3.5" /> Confirm Telebirr Transfer
+                        <DollarSign className="w-3.5 h-3.5" /> Manual Confirmation
                       </button>
                     )}
                     <span className="text-xs font-mono font-semibold px-2 py-1 bg-white border border-slate-200 rounded">
